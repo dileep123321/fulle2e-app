@@ -16,35 +16,62 @@ jobs:
       USE_GKE_GCLOUD_AUTH_PLUGIN: "True"
 
     steps:
+    # ----------------------------
+    # 1. Checkout Code
+    # ----------------------------
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Authenticate to Google Cloud (OIDC)
+    # ----------------------------
+    # 2. Authenticate to GCP (OIDC)
+    # ----------------------------
+    - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
         workload_identity_provider: "projects/271085679762/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
         service_account: "github-gke-sa@dileep-481002.iam.gserviceaccount.com"
 
+    # ----------------------------
+    # 3. Setup gcloud
+    # ----------------------------
     - name: Setup gcloud
       uses: google-github-actions/setup-gcloud@v2
 
+    # ----------------------------
+    # 4. Install GKE auth plugin
+    # ----------------------------
     - name: Install GKE auth plugin
       run: gcloud components install gke-gcloud-auth-plugin --quiet
 
+    # ----------------------------
+    # 5. Configure Docker
+    # ----------------------------
     - name: Configure Docker
       run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
+    # ----------------------------
+    # 6. Build & Push Image
+    # ----------------------------
     - name: Build and Push Image
       run: |
         docker build -t us-central1-docker.pkg.dev/dileep-481002/backend-repo/backend-app:latest .
         docker push us-central1-docker.pkg.dev/dileep-481002/backend-repo/backend-app:latest
 
+    # ----------------------------
+    # 7. Get GKE credentials
+    # ----------------------------
     - name: Get GKE Credentials
       run: |
-        gcloud container clusters get-credentials gke-cluster           --zone us-central1           --project dileep-481002
+        gcloud container clusters get-credentials gke-cluster \
+          --zone us-central1-a \
+          --project dileep-481002
 
+    # ----------------------------
+    # 8. Deploy to GKE
+    # ----------------------------
     - name: Deploy to GKE
       run: |
         kubectl apply -f k8s/namespace.yaml || true
         kubectl apply -f k8s/deployment.yaml
         kubectl apply -f k8s/service.yaml
+
