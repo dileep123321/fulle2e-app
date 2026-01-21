@@ -1,0 +1,50 @@
+name: CI/CD – GKE Backend Deployment
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      USE_GKE_GCLOUD_AUTH_PLUGIN: "True"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud (OIDC)
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: "projects/271085679762/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+        service_account: "github-gke-sa@dileep-481002.iam.gserviceaccount.com"
+
+    - name: Setup gcloud
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Install GKE auth plugin
+      run: gcloud components install gke-gcloud-auth-plugin --quiet
+
+    - name: Configure Docker
+      run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+    - name: Build and Push Image
+      run: |
+        docker build -t us-central1-docker.pkg.dev/dileep-481002/backend-repo/backend-app:latest .
+        docker push us-central1-docker.pkg.dev/dileep-481002/backend-repo/backend-app:latest
+
+    - name: Get GKE Credentials
+      run: |
+        gcloud container clusters get-credentials gke-cluster           --region us-central1           --project dileep-481002
+
+    - name: Deploy to GKE
+      run: |
+        kubectl apply -f k8s/namespace.yaml || true
+        kubectl apply -f k8s/deployment.yaml
+        kubectl apply -f k8s/service.yaml
